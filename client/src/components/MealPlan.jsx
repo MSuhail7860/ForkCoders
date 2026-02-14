@@ -12,11 +12,16 @@ const MealPlan = ({ targetCalories }) => {
         setError(null);
         try {
             const res = await axios.post('http://localhost:5000/api/generate-meal-plan', { targetCalories });
-            // API returns { success: true, data: { ... } }
-            setMealPlan(res.data.data);
+
+            if (res.data.success) {
+                // The backend now returns the data in res.data.data
+                setMealPlan(res.data.data);
+            } else {
+                setError('Failed to generate meal plan.');
+            }
         } catch (err) {
             console.error(err);
-            setError('Failed to generate meal plan. The external chef might be busy!');
+            setError('Failed to generate meal plan. The external chef is busy!');
         } finally {
             setLoading(false);
         }
@@ -57,9 +62,7 @@ const MealPlan = ({ targetCalories }) => {
                         const mealData = mealPlan[mealType];
                         if (!mealData) return null;
 
-                        // Ingredients logic
-                        // Ensure ingredients is an array. RecipeDB sometimes assumes object or array.
-                        // Based on prompt "map over the ingredients array".
+                        // Ingredients logic: Ensure it's an array for mapping
                         let ingredientsList = [];
                         if (Array.isArray(mealData.ingredients)) {
                             ingredientsList = mealData.ingredients;
@@ -70,33 +73,25 @@ const MealPlan = ({ targetCalories }) => {
                         const displayedIngredients = ingredientsList.slice(0, 5);
                         const remainingCount = Math.max(0, ingredientsList.length - 5);
 
+                        // Macro Injection Logic
+                        const calories = Math.round(mealData.Calories || 0);
+                        const protein = mealData.protein || (Math.round(calories * 0.075) + "g");
+                        const carbs = mealData.carbs || (Math.round(calories * 0.1) + "g");
+
                         return (
                             <div key={mealType} className="bg-white rounded-xl shadow-md overflow-hidden card-hover border border-gray-100 flex flex-col h-full group">
 
-                                {/* Image Header */}
+                                {/* Image Header with Strict Fallback */}
                                 <div className="h-48 w-full bg-gray-100 relative overflow-hidden">
-                                    {mealData.img_url ? (
-                                        <img
-                                            src={mealData.img_url}
-                                            alt={mealData.Recipe_title}
-                                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                                            onError={(e) => {
-                                                e.target.style.display = 'none';
-                                                // Show fallback
-                                                e.target.parentElement.querySelector('.fallback-img').style.display = 'flex';
-                                            }}
-                                        />
-                                    ) : null}
-
-                                    {/* Fallback (Overlay or Replacement) */}
-                                    {/* We use a class 'fallback-img' to toggle visibility on error */}
-                                    <div
-                                        className="fallback-img absolute inset-0 flex-col items-center justify-center text-gray-400 bg-gray-100"
-                                        style={{ display: mealData.img_url ? 'none' : 'flex' }}
-                                    >
-                                        <ImageOff className="h-10 w-10 mb-2 opacity-50" />
-                                        <span className="text-xs font-semibold uppercase tracking-wider opacity-60">No Image</span>
-                                    </div>
+                                    <img
+                                        src={mealData.img_url || 'https://placehold.co/600x400?text=Recipe+Image'}
+                                        alt={mealData.Recipe_title || mealType}
+                                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                        onError={(e) => {
+                                            e.target.onerror = null;
+                                            e.target.src = 'https://placehold.co/600x400?text=Recipe+Image';
+                                        }}
+                                    />
                                 </div>
 
                                 <div className="bg-white p-5 flex-1 flex flex-col relative">
@@ -109,26 +104,26 @@ const MealPlan = ({ targetCalories }) => {
 
                                     {/* Title */}
                                     <h4 className="font-bold text-lg text-brand-dark mb-3 mt-2 leading-tight min-h-[3.5rem] line-clamp-2">
-                                        {mealData.Recipe_title}
+                                        {mealData.Recipe_title || "Unknown Recipe"}
                                     </h4>
 
                                     {/* Macros Row */}
                                     <div className="flex items-center justify-between text-sm text-gray-500 mb-4 bg-gray-50 p-3 rounded-lg">
                                         <div className="flex flex-col items-center">
                                             <Flame className="h-4 w-4 text-orange-500 mb-1" />
-                                            <span className="font-semibold text-gray-700">{Math.round(mealData.Calories)}</span>
+                                            <span className="font-semibold text-gray-700">{calories}</span>
                                             <span className="text-[10px]">kcal</span>
                                         </div>
                                         <div className="w-px h-8 bg-gray-200"></div>
                                         <div className="flex flex-col items-center">
                                             <Beef className="h-4 w-4 text-red-500 mb-1" />
-                                            <span className="font-semibold text-gray-700">{mealData.protein || "25g"}</span>
+                                            <span className="font-semibold text-gray-700">{protein}</span>
                                             <span className="text-[10px]">Prot</span>
                                         </div>
                                         <div className="w-px h-8 bg-gray-200"></div>
                                         <div className="flex flex-col items-center">
                                             <Wheat className="h-4 w-4 text-yellow-500 mb-1" />
-                                            <span className="font-semibold text-gray-700">{mealData.carbs || "45g"}</span>
+                                            <span className="font-semibold text-gray-700">{carbs}</span>
                                             <span className="text-[10px]">Carb</span>
                                         </div>
                                     </div>
@@ -142,7 +137,9 @@ const MealPlan = ({ targetCalories }) => {
                                             {displayedIngredients.map((ing, idx) => (
                                                 <li key={idx} className="flex items-start text-xs text-gray-600">
                                                     <span className="mr-2 text-brand">•</span>
-                                                    <span className="line-clamp-1">{typeof ing === 'string' ? ing : ing.phrase || JSON.stringify(ing)}</span>
+                                                    <span className="line-clamp-1">
+                                                        {typeof ing === 'string' ? ing : (ing.phrase || JSON.stringify(ing))}
+                                                    </span>
                                                 </li>
                                             ))}
                                         </ul>

@@ -93,6 +93,7 @@ app.post('/api/calculate-and-save', async (req, res) => {
 });
 
 // 2. Generate Meal Plan
+// 2. Generate Meal Plan
 app.post('/api/generate-meal-plan', async (req, res) => {
   try {
     const { targetCalories } = req.body;
@@ -101,21 +102,19 @@ app.post('/api/generate-meal-plan', async (req, res) => {
       return res.status(400).json({ success: false, error: 'targetCalories is required' });
     }
 
+    // Formatting: Ensure calories_per_day is sent as a template literal string: 
+    // `min:${targetCalories - 150},max:${targetCalories + 150}`.
     const minCalories = targetCalories - 150;
     const maxCalories = targetCalories + 150;
-
-    // Construct the query parameter string manually as required by the prompt
-    // ?diet_type=vegan&days=1&calories_per_day={min:${targetCalories - 150},max:${targetCalories + 150}}
-    const caloriesParam = `{min:${minCalories},max:${maxCalories}}`;
-
-    // Using axios with params object might encode incorrectly for this specific non-standard API format if not careful.
-    // Let's construct the URL or be very specific. 
-    // The prompt says: Set the API query parameters to: ?diet_type=vegan&days=1&calories_per_day={min:...,max:...}
+    const caloriesParam = `min:${minCalories},max:${maxCalories}`;
 
     const apiURL = 'http://cosylab.iiitd.edu.in:6969/recipe2-api/mealplan/meal-plan';
 
+    console.log(`Calling RecipeDB: ${apiURL} with cal=${caloriesParam}`);
+
     const response = await axios.get(apiURL, {
       headers: {
+        // Auth: Ensure Authorization: Bearer ${process.env.RECIPEDB_KEY} is in the headers.
         'Authorization': `Bearer ${process.env.RECIPEDB_KEY}`
       },
       params: {
@@ -125,26 +124,21 @@ app.post('/api/generate-meal-plan', async (req, res) => {
       }
     });
 
-    // Extract Day 1 Data
-    const mealPlan = response.data?.data?.meal_plan?.["Day 1"];
-
-    if (!mealPlan) {
-      return res.status(404).json({ success: false, error: 'No meal plan generated from external API' });
+    // Pathing: RecipeDB often wraps data in a payload. 
+    // Use: const planData = response.data.payload.data.meal_plan["Day 1"];.
+    // We add checks to avoid crashing if structure is unexpected, but we prioritize the requested path.
+    if (!response.data || !response.data.payload || !response.data.payload.data || !response.data.payload.data.meal_plan) {
+      console.error('Unexpected RecipeDB Response Structure:', JSON.stringify(response.data, null, 2));
+      return res.status(500).json({ success: false, error: 'Unexpected API Response Structure' });
     }
 
-    // Inject mock macros if missing (RecipeDB sometimes omits them)
-    Object.keys(mealPlan).forEach(mealType => {
-      const meal = mealPlan[mealType];
-      if (!meal.nutrients) meal.nutrients = {};
-      // Prompt requirement: "If RecipeDB omits Protein/Carbs, inject mock string values"
-      // We'll just add them to the meal object directly or strictly follow prompt to be safe.
-      // Prompt says: "inject mock string values (e.g., "15g") into each meal object"
-      if (!meal.protein) meal.protein = "25g";
-      if (!meal.carbs) meal.carbs = "45g";
-      if (!meal.fat) meal.fat = "15g";
-    });
+    const mealPlanDay1 = response.data.payload.data.meal_plan["Day 1"];
 
-    res.json({ success: true, data: mealPlan });
+    if (!mealPlanDay1) {
+      return res.status(404).json({ success: false, error: 'No meal plan returned (Day 1 missing)' });
+    }
+
+    res.json({ success: true, data: mealPlanDay1 });
 
   } catch (error) {
     console.error('Error in /api/generate-meal-plan:', error.message);
