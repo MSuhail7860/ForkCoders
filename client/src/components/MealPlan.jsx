@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { ChefHat, Flame, List, Loader2, ImageOff, Beef, Wheat } from 'lucide-react';
 
@@ -7,24 +7,53 @@ const MealPlan = ({ targetCalories }) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
-    const fetchMealPlan = async () => {
+    // FIX: Extracted fetch logic into a callback that supports an abort signal
+    const generatePlan = async (signal) => {
         setLoading(true);
         setError(null);
         try {
-            const res = await axios.post('http://localhost:5000/api/generate-meal-plan', { targetCalories });
+            const res = await axios.post(
+                'http://localhost:5000/api/generate-meal-plan', 
+                { targetCalories },
+                { signal } // Pass the abort signal to axios
+            );
 
             if (res.data.success) {
-                // The backend now returns the data in res.data.data
                 setMealPlan(res.data.data);
             } else {
                 setError('Failed to generate meal plan.');
             }
         } catch (err) {
-            console.error(err);
-            setError('Failed to generate meal plan. The external chef is busy!');
+            // Check if the error is just a canceled request
+            if (axios.isCancel(err)) {
+                console.log('Meal plan fetch aborted because component unmounted.');
+            } else {
+                console.error(err);
+                setError('Failed to generate meal plan. The external chef is busy!');
+            }
         } finally {
             setLoading(false);
         }
+    };
+
+    // FIX: UseEffect with AbortController and cleanup function
+    useEffect(() => {
+        if (!targetCalories) return;
+
+        const controller = new AbortController();
+        
+        // Auto-fetch when targetCalories are available/change
+        generatePlan(controller.signal);
+
+        // Cleanup function runs when component unmounts
+        return () => {
+            controller.abort(); // Cancels the axios request
+        };
+    }, [targetCalories]);
+
+    // For manual button clicks (if the user wants to regenerate)
+    const handleManualFetch = () => {
+        generatePlan(); // Without signal, as it's a direct user action, but still safe
     };
 
     const meals = ['Breakfast', 'Lunch', 'Dinner'];
@@ -34,12 +63,12 @@ const MealPlan = ({ targetCalories }) => {
             <div className="flex justify-between items-center mb-6">
                 <h3 className="text-2xl font-bold text-gray-800">Your Daily Fuel</h3>
                 <button
-                    onClick={fetchMealPlan}
+                    onClick={handleManualFetch}
                     disabled={loading}
                     className="flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-full shadow-sm text-white bg-brand hover:bg-brand-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     {loading ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <ChefHat className="h-4 w-4 mr-2" />}
-                    {loading ? 'Cooking...' : "Generate Today's Plan"}
+                    {loading ? 'Cooking...' : "Regenerate Plan"}
                 </button>
             </div>
 

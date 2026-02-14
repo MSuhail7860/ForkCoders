@@ -1,16 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Login from './components/Login';
 import Onboarding from './components/Onboarding';
 import MealPlan from './components/MealPlan';
 import { Target, Activity, Droplet, Camera, Dumbbell, TrendingUp, Plus, Minus, X } from 'lucide-react';
 
 function App() {
-  const [currentScreen, setCurrentScreen] = useState('login');
-  const [user, setUser] = useState(null);
-  const [metrics, setMetrics] = useState(null);
-  const [waterIntake, setWaterIntake] = useState(0);
+  // 1. FIX: Initialize state from LocalStorage to survive page refreshes
+  const [currentScreen, setCurrentScreen] = useState(() => {
+    return localStorage.getItem('userMetrics') ? 'dashboard' : 'login';
+  });
+  
+  const [user, setUser] = useState(() => {
+    const saved = localStorage.getItem('userData');
+    return saved ? JSON.parse(saved) : null;
+  });
+  
+  const [metrics, setMetrics] = useState(() => {
+    const saved = localStorage.getItem('userMetrics');
+    return saved ? JSON.parse(saved) : null;
+  });
 
-  // New States for features
+  const [waterIntake, setWaterIntake] = useState(0);
   const [workout, setWorkout] = useState(null);
   const [showProgressModal, setShowProgressModal] = useState(false);
 
@@ -19,22 +29,39 @@ function App() {
     setCurrentScreen('onboarding');
   };
 
+  // 2. FIX: Handle JWT Token and Save to LocalStorage
   const handleOnboardingComplete = (data) => {
-    // data contains: dailyCalories, bmi, macros, goal, user (full profile)
     console.log("Onboarding Complete Data:", data);
-    setUser(data.user);
+    
+    // Save to State
+    setUser(data.data); // Based on our updated backend, the user object is in data.data
     setMetrics(data);
     setCurrentScreen('dashboard');
+
+    // Save to LocalStorage for persistence
+    localStorage.setItem('userData', JSON.stringify(data.data));
+    localStorage.setItem('userMetrics', JSON.stringify(data));
+    if (data.token) {
+      localStorage.setItem('authToken', data.token); // Store the JWT!
+    }
+  };
+
+  // Logout Function (Added for completeness)
+  const handleLogout = () => {
+    localStorage.clear();
+    setUser(null);
+    setMetrics(null);
+    setCurrentScreen('login');
   };
 
   const adjustWater = (amount) => {
     setWaterIntake(prev => Math.max(0, Math.min(8, prev + amount)));
   };
 
-  // Workout Plan Logic
   const generateWorkoutPlan = () => {
     if (!metrics) return;
-    const goal = metrics.goal;
+    const goal = metrics.goal || (metrics.data?.metrics?.goal);
+    
     let plan = "";
     if (goal === 'lose') {
       plan = "30 min Cardio + High Rep Calisthenics.";
@@ -46,26 +73,25 @@ function App() {
     setWorkout(plan);
   };
 
-  // Photo Analyze Logic
   const handlePhotoUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
-      // Mock Analysis
-      alert("AI Analyzing... [Mock Calorie Count: 450 kcal]");
+      alert(`AI Analyzing ${file.name}... [Mock Calorie Count: 450 kcal]`);
     }
+    // FIX: Clear the input so the same file can be uploaded again if needed
+    e.target.value = null; 
   };
 
-  // 1. Login Screen
-  if (currentScreen === 'login') {
-    return <Login onLogin={handleLogin} />;
-  }
+  // Routing Logic
+  if (currentScreen === 'login') return <Login onLogin={handleLogin} />;
+  if (currentScreen === 'onboarding') return <Onboarding onComplete={handleOnboardingComplete} />;
 
-  // 2. Onboarding Screen
-  if (currentScreen === 'onboarding') {
-    return <Onboarding onComplete={handleOnboardingComplete} />;
-  }
+  // Safely extract weight and goal (handling different backend payload structures)
+  const userWeight = metrics?.data?.metrics?.weight || metrics?.user?.metrics?.weight || 0;
+  const userGoal = metrics?.goal || metrics?.data?.metrics?.goal || 'maintain';
+  const targetCals = metrics?.dailyCalories || metrics?.data?.targets?.dailyCalories;
+  const targetBmi = metrics?.bmi || metrics?.data?.targets?.bmi;
 
-  // 3. Dashboard Screen
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-gray-900 relative">
       {/* Header */}
@@ -77,8 +103,10 @@ function App() {
           </div>
           <div className="flex items-center space-x-4">
             <div className="text-sm text-gray-500">
-              Welcome, <span className="font-semibold text-gray-800">{user?.name}</span>
+              Welcome, <span className="font-semibold text-gray-800">{user?.name || 'Athlete'}</span>
             </div>
+            {/* Added Logout Button */}
+            <button onClick={handleLogout} className="text-xs text-red-500 hover:underline">Logout</button>
           </div>
         </div>
       </header>
@@ -88,7 +116,7 @@ function App() {
         {/* Progress Modal */}
         {showProgressModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-            <div className="bg-white rounded-xl p-8 max-w-md w-full relative shadow-2xl">
+            <div className="bg-white rounded-xl p-8 max-w-md w-full relative shadow-2xl animate-fade-in">
               <button
                 onClick={() => setShowProgressModal(false)}
                 className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
@@ -99,21 +127,18 @@ function App() {
               <div className="space-y-4">
                 <div className="flex justify-between border-b pb-2">
                   <span className="text-gray-600">Starting Weight</span>
-                  <span className="font-semibold">{metrics?.user?.metrics?.weight} kg</span>
+                  <span className="font-semibold">{userWeight} kg</span>
                 </div>
                 <div className="flex justify-between border-b pb-2">
                   <span className="text-gray-600">Goal Weight (Est.)</span>
-                  {/* Simple estimation based on goal */}
                   <span className="font-semibold">
-                    {metrics?.goal === 'lose' ? (metrics.user.metrics.weight - 5) :
-                      metrics?.goal === 'gain' ? (parseInt(metrics.user.metrics.weight) + 5) :
-                        metrics.user.metrics.weight} kg
+                    {userGoal === 'lose' ? (userWeight - 5) : userGoal === 'gain' ? (parseInt(userWeight) + 5) : userWeight} kg
                   </span>
                 </div>
                 <div className="flex justify-between pt-2">
                   <span className="text-gray-600">Current BMI</span>
-                  <span className={`font-bold ${metrics?.bmi < 18.5 ? 'text-yellow-600' : metrics?.bmi < 25 ? 'text-brand' : 'text-red-600'}`}>
-                    {metrics?.bmi}
+                  <span className={`font-bold ${targetBmi < 18.5 ? 'text-yellow-600' : targetBmi < 25 ? 'text-brand' : 'text-red-600'}`}>
+                    {targetBmi}
                   </span>
                 </div>
               </div>
@@ -132,11 +157,11 @@ function App() {
             <div className="relative z-10">
               <h2 className="text-lg font-medium opacity-90 mb-1">Discipline Target</h2>
               <div className="flex items-baseline space-x-2">
-                <span className="text-5xl font-extrabold">{metrics?.dailyCalories}</span>
+                <span className="text-5xl font-extrabold">{targetCals}</span>
                 <span className="text-sm font-semibold uppercase tracking-wider opacity-80">kcal</span>
               </div>
               <div className="mt-4 inline-flex items-center px-3 py-1 rounded-full bg-white/20 backdrop-blur-sm text-sm font-medium capitalize">
-                Goal: {metrics?.goal}
+                Goal: {userGoal}
               </div>
             </div>
           </div>
@@ -148,14 +173,14 @@ function App() {
                 <h2 className="text-lg font-semibold text-gray-600">BMI Monitor</h2>
                 <p className="text-xs text-gray-400">Body Mass Index</p>
               </div>
-              <div className={`p-2 rounded-lg ${metrics?.bmi < 18.5 ? 'bg-yellow-100 text-yellow-600' : metrics?.bmi < 25 ? 'bg-green-100 text-brand' : 'bg-red-100 text-red-600'}`}>
+              <div className={`p-2 rounded-lg ${targetBmi < 18.5 ? 'bg-yellow-100 text-yellow-600' : targetBmi < 25 ? 'bg-green-100 text-brand' : 'bg-red-100 text-red-600'}`}>
                 <Activity className="h-6 w-6" />
               </div>
             </div>
             <div className="mt-4">
-              <span className="text-4xl font-bold text-gray-900">{metrics?.bmi}</span>
+              <span className="text-4xl font-bold text-gray-900">{targetBmi}</span>
               <span className="ml-2 text-sm font-medium text-gray-500">
-                {metrics?.bmi < 18.5 ? 'Underweight' : metrics?.bmi < 25 ? 'Normal Weight' : 'Overweight'}
+                {targetBmi < 18.5 ? 'Underweight' : targetBmi < 25 ? 'Normal Weight' : 'Overweight'}
               </span>
             </div>
           </div>
@@ -192,8 +217,6 @@ function App() {
 
         {/* Feature Buttons Logic */}
         <div className="grid grid-cols-3 gap-4 mb-8">
-
-          {/* Photo Analyze */}
           <button
             className="flex flex-col items-center justify-center p-4 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-all group relative cursor-pointer"
             onClick={() => document.getElementById('photo-upload').click()}
@@ -211,7 +234,6 @@ function App() {
             />
           </button>
 
-          {/* Workout Plan */}
           <button
             className="flex flex-col items-center justify-center p-4 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-all group"
             onClick={generateWorkoutPlan}
@@ -222,7 +244,6 @@ function App() {
             <span className="text-sm font-medium text-gray-700">Workout Plan</span>
           </button>
 
-          {/* Progress Report */}
           <button
             className="flex flex-col items-center justify-center p-4 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-all group"
             onClick={() => setShowProgressModal(true)}
@@ -236,7 +257,11 @@ function App() {
 
         {/* Display Generated Workout */}
         {workout && (
-          <div className="mb-8 bg-purple-50 border border-purple-100 p-4 rounded-xl flex items-center shadow-sm animate-fade-in">
+          <div className="mb-8 bg-purple-50 border border-purple-100 p-4 rounded-xl flex items-center shadow-sm animate-fade-in relative">
+             {/* Small clear button for the workout */}
+             <button onClick={() => setWorkout(null)} className="absolute top-2 right-2 text-purple-400 hover:text-purple-600">
+                <X className="h-4 w-4"/>
+             </button>
             <Dumbbell className="h-6 w-6 text-purple-600 mr-3" />
             <div>
               <h4 className="font-bold text-purple-800 text-sm uppercase tracking-wide">Your Plan</h4>
@@ -246,7 +271,7 @@ function App() {
         )}
 
         {/* Meal Plan Section */}
-        <MealPlan targetCalories={metrics?.dailyCalories} />
+        <MealPlan targetCalories={targetCals} />
       </main>
     </div>
   );
