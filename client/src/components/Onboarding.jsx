@@ -10,7 +10,8 @@ const Onboarding = ({ onComplete }) => {
         height: '',
         age: '',
         gender: 'male',
-        activity: '1.2'
+        activity: '1.2',
+        goal: 'lose'
     });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -164,7 +165,21 @@ const Onboarding = ({ onComplete }) => {
                                 </div>
                             </div>
                         </div>
-                    </div>
+
+                        <div className="mb-4">
+                            <label className="block text-sm font-medium text-gray-700">Goal</label>
+                            <select
+                                name="goal"
+                                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-brand focus:border-brand sm:text-sm rounded-md border"
+                                value={formData.goal}
+                                onChange={handleChange}
+                            >
+                                <option value="lose">Weight Loss (-500 cal)</option>
+                                <option value="maintain">Maintain Weight</option>
+                                <option value="gain">Weight Gain (+500 cal)</option>
+                            </select>
+                        </div>
+                    </div >
 
                     <div>
                         <button
@@ -176,9 +191,9 @@ const Onboarding = ({ onComplete }) => {
                             {!loading && <ArrowRight className="ml-2 h-4 w-4" />}
                         </button>
                     </div>
-                </form>
-            </div>
-        </div>
+                </form >
+            </div >
+        </div >
     );
 };
 

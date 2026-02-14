@@ -38,22 +38,41 @@ app.post('/api/calculate-and-save', async (req, res) => {
     }
 
     // Calculate TDEE
-    const tdee = Math.round(bmr * parseFloat(activity));
+    let tdee = Math.round(bmr * parseFloat(activity));
+
+    // Adjust for Goal
+    const goalMap = {
+      'lose': -500,
+      'maintain': 0,
+      'gain': 500
+    };
+    tdee += (goalMap[req.body.goal] || 0);
+
+    // Calculate BMI
+    const heightInMeters = height / 100;
+    const bmi = parseFloat((weight / (heightInMeters * heightInMeters)).toFixed(1));
+
+    // Calculate Macros (40% C, 30% P, 30% F)
+    const macros = {
+      carbs: Math.round((tdee * 0.4) / 4),
+      protein: Math.round((tdee * 0.3) / 4),
+      fats: Math.round((tdee * 0.3) / 9)
+    };
 
     // Save or Update User
     let user = await User.findOne({ email });
+    const userData = {
+      name,
+      email,
+      metrics: { weight, height, age, gender, activity, goal: req.body.goal },
+      targets: { dailyCalories: tdee, bmi, macros }
+    };
+
     if (user) {
-      user.name = name;
-      user.metrics = { weight, height, age, gender, activity };
-      user.targets = { dailyCalories: tdee };
+      Object.assign(user, userData);
       await user.save();
     } else {
-      user = new User({
-        name,
-        email,
-        metrics: { weight, height, age, gender, activity },
-        targets: { dailyCalories: tdee }
-      });
+      user = new User(userData);
       await user.save();
     }
 
@@ -61,6 +80,9 @@ app.post('/api/calculate-and-save', async (req, res) => {
       success: true,
       data: {
         dailyCalories: tdee,
+        bmi,
+        macros,
+        goal: req.body.goal,
         user
       }
     });
@@ -109,6 +131,18 @@ app.post('/api/generate-meal-plan', async (req, res) => {
     if (!mealPlan) {
       return res.status(404).json({ success: false, error: 'No meal plan generated from external API' });
     }
+
+    // Inject mock macros if missing (RecipeDB sometimes omits them)
+    Object.keys(mealPlan).forEach(mealType => {
+      const meal = mealPlan[mealType];
+      if (!meal.nutrients) meal.nutrients = {};
+      // Prompt requirement: "If RecipeDB omits Protein/Carbs, inject mock string values"
+      // We'll just add them to the meal object directly or strictly follow prompt to be safe.
+      // Prompt says: "inject mock string values (e.g., "15g") into each meal object"
+      if (!meal.protein) meal.protein = "25g";
+      if (!meal.carbs) meal.carbs = "45g";
+      if (!meal.fat) meal.fat = "15g";
+    });
 
     res.json({ success: true, data: mealPlan });
 
