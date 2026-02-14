@@ -1,52 +1,55 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios'; // Make sure this is imported!
 import Login from './components/Login';
 import Onboarding from './components/Onboarding';
 import MealPlan from './components/MealPlan';
 import { Target, Activity, Droplet, Camera, Dumbbell, TrendingUp, Plus, Minus, X } from 'lucide-react';
 
+// Helper function to safely parse LocalStorage and prevent blank screens
+const safeJsonParse = (key) => {
+  try {
+    const item = localStorage.getItem(key);
+    return item ? JSON.parse(item) : null;
+  } catch (error) {
+    console.error(`Error parsing ${key} from LocalStorage, clearing it.`, error);
+    localStorage.removeItem(key);
+    return null;
+  }
+};
+
 function App() {
-  // 1. FIX: Initialize state from LocalStorage to survive page refreshes
+  // CRASH-PROOF INITIALIZATION
   const [currentScreen, setCurrentScreen] = useState(() => {
-    return localStorage.getItem('userMetrics') ? 'dashboard' : 'login';
+    return safeJsonParse('userMetrics') ? 'dashboard' : 'login';
   });
   
-  const [user, setUser] = useState(() => {
-    const saved = localStorage.getItem('userData');
-    return saved ? JSON.parse(saved) : null;
-  });
-  
-  const [metrics, setMetrics] = useState(() => {
-    const saved = localStorage.getItem('userMetrics');
-    return saved ? JSON.parse(saved) : null;
-  });
+  const [user, setUser] = useState(() => safeJsonParse('userData'));
+  const [metrics, setMetrics] = useState(() => safeJsonParse('userMetrics'));
 
   const [waterIntake, setWaterIntake] = useState(0);
   const [workout, setWorkout] = useState(null);
   const [showProgressModal, setShowProgressModal] = useState(false);
+  
+  // State for AI Analysis Loading
+  const [analyzingImage, setAnalyzingImage] = useState(false);
 
   const handleLogin = (name) => {
     setUser({ name });
     setCurrentScreen('onboarding');
   };
 
-  // 2. FIX: Handle JWT Token and Save to LocalStorage
   const handleOnboardingComplete = (data) => {
-    console.log("Onboarding Complete Data:", data);
-    
-    // Save to State
-    setUser(data.data); // Based on our updated backend, the user object is in data.data
+    setUser(data.data); 
     setMetrics(data);
     setCurrentScreen('dashboard');
 
-    // Save to LocalStorage for persistence
     localStorage.setItem('userData', JSON.stringify(data.data));
     localStorage.setItem('userMetrics', JSON.stringify(data));
     if (data.token) {
-      localStorage.setItem('authToken', data.token); // Store the JWT!
+      localStorage.setItem('authToken', data.token);
     }
   };
 
-  // Logout Function (Added for completeness)
   const handleLogout = () => {
     localStorage.clear();
     setUser(null);
@@ -73,20 +76,35 @@ function App() {
     setWorkout(plan);
   };
 
-  const handlePhotoUpload = (e) => {
+  // ACTUAL AI INTEGRATION LOGIC
+  const handlePhotoUpload = async (e) => {
     const file = e.target.files[0];
-    if (file) {
-      alert(`AI Analyzing ${file.name}... [Mock Calorie Count: 450 kcal]`);
+    if (!file) return;
+
+    setAnalyzingImage(true);
+    const formData = new FormData();
+    formData.append('image', file);
+
+    try {
+      const res = await axios.post('http://localhost:5000/api/analyze-food', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      const { name, calories, protein, carbs, fats } = res.data.data;
+      alert(`🤖 AI Analysis Complete!\n\nFood Detected: ${name}\nCalories: ${calories} kcal\nProtein: ${protein}\nCarbs: ${carbs}\nFats: ${fats}`);
+      
+    } catch (error) {
+      console.error(error);
+      alert("AI failed to analyze the image. Please try a clearer picture.");
+    } finally {
+      setAnalyzingImage(false);
+      e.target.value = null; 
     }
-    // FIX: Clear the input so the same file can be uploaded again if needed
-    e.target.value = null; 
   };
 
-  // Routing Logic
   if (currentScreen === 'login') return <Login onLogin={handleLogin} />;
   if (currentScreen === 'onboarding') return <Onboarding onComplete={handleOnboardingComplete} />;
 
-  // Safely extract weight and goal (handling different backend payload structures)
   const userWeight = metrics?.data?.metrics?.weight || metrics?.user?.metrics?.weight || 0;
   const userGoal = metrics?.goal || metrics?.data?.metrics?.goal || 'maintain';
   const targetCals = metrics?.dailyCalories || metrics?.data?.targets?.dailyCalories;
@@ -94,7 +112,6 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-gray-900 relative">
-      {/* Header */}
       <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
           <div className="flex items-center space-x-2">
@@ -105,22 +122,17 @@ function App() {
             <div className="text-sm text-gray-500">
               Welcome, <span className="font-semibold text-gray-800">{user?.name || 'Athlete'}</span>
             </div>
-            {/* Added Logout Button */}
             <button onClick={handleLogout} className="text-xs text-red-500 hover:underline">Logout</button>
           </div>
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-
         {/* Progress Modal */}
         {showProgressModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
             <div className="bg-white rounded-xl p-8 max-w-md w-full relative shadow-2xl animate-fade-in">
-              <button
-                onClick={() => setShowProgressModal(false)}
-                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
-              >
+              <button onClick={() => setShowProgressModal(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
                 <X className="h-6 w-6" />
               </button>
               <h3 className="text-2xl font-bold text-gray-800 mb-4">Progress Report</h3>
@@ -148,8 +160,6 @@ function App() {
 
         {/* Dashboard Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-
-          {/* Card 1: Discipline Target */}
           <div className="bg-gradient-to-r from-brand-dark to-brand rounded-2xl p-6 text-white shadow-lg relative overflow-hidden group">
             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
               <Target className="h-24 w-24" />
@@ -166,7 +176,6 @@ function App() {
             </div>
           </div>
 
-          {/* Card 2: BMI Monitor */}
           <div className="bg-white rounded-2xl p-6 text-gray-800 shadow-sm border border-gray-200 flex flex-col justify-between">
             <div className="flex justify-between items-start">
               <div>
@@ -185,7 +194,6 @@ function App() {
             </div>
           </div>
 
-          {/* Card 3: Water Tracker */}
           <div className="bg-white rounded-2xl p-6 text-gray-800 shadow-sm border border-gray-200 flex flex-col justify-between">
             <div className="flex justify-between items-start mb-2">
               <h2 className="text-lg font-semibold text-gray-600">Hydration</h2>
@@ -206,48 +214,34 @@ function App() {
               </div>
             </div>
             <div className="w-full bg-gray-100 rounded-full h-2 mt-4 overflow-hidden">
-              <div
-                className="bg-blue-500 h-2 rounded-full transition-all duration-500 ease-out"
-                style={{ width: `${(waterIntake / 8) * 100}%` }}
-              ></div>
+              <div className="bg-blue-500 h-2 rounded-full transition-all duration-500 ease-out" style={{ width: `${(waterIntake / 8) * 100}%` }}></div>
             </div>
           </div>
-
         </div>
 
-        {/* Feature Buttons Logic */}
         <div className="grid grid-cols-3 gap-4 mb-8">
           <button
-            className="flex flex-col items-center justify-center p-4 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-all group relative cursor-pointer"
+            className="flex flex-col items-center justify-center p-4 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-all group relative cursor-pointer disabled:opacity-50"
             onClick={() => document.getElementById('photo-upload').click()}
+            disabled={analyzingImage}
           >
             <div className="p-3 bg-indigo-50 text-indigo-600 rounded-full mb-2 group-hover:scale-110 transition-transform">
-              <Camera className="h-6 w-6" />
+              {analyzingImage ? <Activity className="h-6 w-6 animate-spin" /> : <Camera className="h-6 w-6" />}
             </div>
-            <span className="text-sm font-medium text-gray-700">Photo Analyze</span>
-            <input
-              type="file"
-              id="photo-upload"
-              className="hidden"
-              accept="image/*"
-              onChange={handlePhotoUpload}
-            />
+            <span className="text-sm font-medium text-gray-700">
+              {analyzingImage ? 'Analyzing...' : 'Photo Analyze'}
+            </span>
+            <input type="file" id="photo-upload" className="hidden" accept="image/*" onChange={handlePhotoUpload} />
           </button>
 
-          <button
-            className="flex flex-col items-center justify-center p-4 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-all group"
-            onClick={generateWorkoutPlan}
-          >
+          <button className="flex flex-col items-center justify-center p-4 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-all group" onClick={generateWorkoutPlan}>
             <div className="p-3 bg-purple-50 text-purple-600 rounded-full mb-2 group-hover:scale-110 transition-transform">
               <Dumbbell className="h-6 w-6" />
             </div>
             <span className="text-sm font-medium text-gray-700">Workout Plan</span>
           </button>
 
-          <button
-            className="flex flex-col items-center justify-center p-4 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-all group"
-            onClick={() => setShowProgressModal(true)}
-          >
+          <button className="flex flex-col items-center justify-center p-4 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-all group" onClick={() => setShowProgressModal(true)}>
             <div className="p-3 bg-orange-50 text-orange-600 rounded-full mb-2 group-hover:scale-110 transition-transform">
               <TrendingUp className="h-6 w-6" />
             </div>
@@ -255,10 +249,8 @@ function App() {
           </button>
         </div>
 
-        {/* Display Generated Workout */}
         {workout && (
           <div className="mb-8 bg-purple-50 border border-purple-100 p-4 rounded-xl flex items-center shadow-sm animate-fade-in relative">
-             {/* Small clear button for the workout */}
              <button onClick={() => setWorkout(null)} className="absolute top-2 right-2 text-purple-400 hover:text-purple-600">
                 <X className="h-4 w-4"/>
              </button>
@@ -270,7 +262,6 @@ function App() {
           </div>
         )}
 
-        {/* Meal Plan Section */}
         <MealPlan targetCalories={targetCals} />
       </main>
     </div>
