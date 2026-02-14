@@ -3,61 +3,66 @@ import Login from './components/Login';
 import Onboarding from './components/Onboarding';
 import Dashboard from './components/Dashboard';
 
-// Helper function to safely parse LocalStorage and prevent blank screens
-const safeJsonParse = (key) => {
-  try {
-    const item = localStorage.getItem(key);
-    if (!item || item === "undefined") return null;
-    return JSON.parse(item);
-  } catch (error) {
-    console.error(`Error parsing ${key} from LocalStorage, clearing it.`, error);
-    localStorage.removeItem(key);
-    return null;
-  }
-};
-
 function App() {
-  // CRASH-PROOF INITIALIZATION
-  const [currentScreen, setCurrentScreen] = useState(() => {
-    return safeJsonParse('userMetrics') ? 'dashboard' : 'login';
-  });
+  const [user, setUser] = useState(null);
+  const [metrics, setMetrics] = useState(null);
+  const [currentScreen, setCurrentScreen] = useState('login'); // 'login', 'onboarding', 'dashboard'
 
-  const [user, setUser] = useState(() => safeJsonParse('userData'));
-  const [metrics, setMetrics] = useState(() => safeJsonParse('userMetrics'));
+  // Load from local storage on startup
+  useEffect(() => {
+    const savedUser = localStorage.getItem('user');
+    const savedMetrics = localStorage.getItem('metrics');
 
-  const handleLogin = (name) => {
-    setUser({ name });
-    setCurrentScreen('onboarding');
-  };
+    if (savedUser && savedMetrics) {
+      setUser(JSON.parse(savedUser));
+      setMetrics(JSON.parse(savedMetrics));
+      setCurrentScreen('dashboard');
+    }
+  }, []);
 
-  const handleOnboardingComplete = (data) => {
-    setUser(data.data);
-    setMetrics(data);
-    setCurrentScreen('dashboard');
+  const handleLogin = (userData) => {
+    // For prototype, "Login" might just be entering name/email or 
+    // if the user already exists in DB, we fetch them.
+    // Simulating login:
+    setUser(userData);
 
-    localStorage.setItem('userData', JSON.stringify(data.data));
-    localStorage.setItem('userMetrics', JSON.stringify(data));
-    if (data.token) {
-      localStorage.setItem('authToken', data.token);
+    // Check if we have metrics (if returning user)
+    if (userData.metrics && userData.metrics.weight) {
+      setMetrics(userData.metrics); // And targets presumably
+      localStorage.setItem('user', JSON.stringify(userData));
+      localStorage.setItem('metrics', JSON.stringify(userData.metrics));
+      // Note: metrics in DB might be nested differently than local expectation, but let's assume standard
+      setCurrentScreen('dashboard');
+    } else {
+      setCurrentScreen('onboarding');
     }
   };
 
+  const handleOnboardingComplete = (data) => {
+    // data = { user, metrics, targets } from backend
+    setUser(data.user);
+    setMetrics({ ...data.metrics, ...data.targets });
+
+    localStorage.setItem('user', JSON.stringify(data.user));
+    localStorage.setItem('metrics', JSON.stringify({ ...data.metrics, ...data.targets }));
+
+    setCurrentScreen('dashboard');
+  };
+
   const handleLogout = () => {
-    localStorage.clear();
     setUser(null);
     setMetrics(null);
+    localStorage.removeItem('user');
+    localStorage.removeItem('metrics');
     setCurrentScreen('login');
   };
 
-  if (currentScreen === 'login') return <Login onLogin={handleLogin} />;
-  if (currentScreen === 'onboarding') return <Onboarding onComplete={handleOnboardingComplete} />;
-
   return (
-    <Dashboard
-      user={user}
-      metrics={metrics}
-      handleLogout={handleLogout}
-    />
+    <div>
+      {currentScreen === 'login' && <Login onLogin={handleLogin} />}
+      {currentScreen === 'onboarding' && <Onboarding onComplete={handleOnboardingComplete} initialUser={user} />}
+      {currentScreen === 'dashboard' && <Dashboard user={user} metrics={metrics} handleLogout={handleLogout} />}
+    </div>
   );
 }
 

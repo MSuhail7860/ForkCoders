@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { ArrowRight, Activity, User, Scale, Ruler } from 'lucide-react';
 
-const Onboarding = ({ onComplete }) => {
+const Onboarding = ({ onComplete, initialUser }) => {
     const [formData, setFormData] = useState({
-        name: '',
-        email: '',
+        name: initialUser?.name || '',
+        email: initialUser?.email || '',
         weight: '',
         height: '',
         age: '',
@@ -26,10 +26,11 @@ const Onboarding = ({ onComplete }) => {
         setError(null);
         try {
             const res = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/api/calculate-and-save`, formData);
-            onComplete(res.data);
+            onComplete(res.data.data); // Expecting { user, metrics, targets } structure
         } catch (err) {
             console.error(err);
-            setError('Failed to save profile. Please try again.');
+            const errMsg = err.response?.data?.message || err.message || 'Failed to save profile. Please try again.';
+            setError(errMsg);
         } finally {
             setLoading(false);
         }
@@ -186,7 +187,7 @@ const Onboarding = ({ onComplete }) => {
                             disabled={loading}
                             className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-brand hover:bg-brand-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand transition-all duration-200"
                         >
-                            {loading ? 'Calculating...' : 'Calculate My Plan'}
+                            {loading ? 'Calculate My Plan' : 'Calculate My Plan'}
                             {!loading && <ArrowRight className="ml-2 h-4 w-4" />}
                         </button>
                     </div>

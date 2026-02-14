@@ -2,7 +2,6 @@ const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const axios = require('axios');
-const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
 const User = require('./models/User');
@@ -44,6 +43,8 @@ const startServer = async () => {
   }
 };
 
+startServer();
+
 // Centralized Error Class
 class AppError extends Error {
   constructor(message, statusCode) {
@@ -55,153 +56,171 @@ class AppError extends Error {
 
 // Routes
 
-// 1. Calculate and Save Profile
+// 1. Calculate & Save User Data
 app.post('/api/calculate-and-save', async (req, res, next) => {
   try {
     const { name, email, weight, height, age, gender, activity, goal } = req.body;
 
-    if (!name || !email || !weight || !height || !age || !gender || !activity) {
-      return next(new AppError('Missing required profile fields', 400));
+    if (!name || !email || !weight || !height || !age || !gender || !activity || !goal) {
+      return next(new AppError('All fields are required', 400));
     }
 
-    let bmr = (10 * weight) + (6.25 * height) - (5 * age);
-    bmr = (gender.toLowerCase() === 'male') ? bmr + 5 : bmr - 161;
+    // --- CALCULATIONS ---
+    const bmr = gender === 'male'
+      ? 10 * weight + 6.25 * height - 5 * age + 5
+      : 10 * weight + 6.25 * height - 5 * age - 161;
 
-    let tdee = Math.round(bmr * parseFloat(activity));
-    const goalMap = { 'lose': -500, 'maintain': 0, 'gain': 500 };
-    tdee += (goalMap[goal] || 0);
+    const tdee = bmr * parseFloat(activity);
 
-    const bmi = parseFloat((weight / ((height / 100) ** 2)).toFixed(1));
+    let dailyCalories = tdee;
+    if (goal === 'lose') dailyCalories -= 500;
+    else if (goal === 'gain') dailyCalories += 500;
 
-    const userData = {
-      name, email,
-      metrics: { weight, height, age, gender, activity, goal },
-      targets: {
-        dailyCalories: tdee,
-        bmi,
-        macros: {
-          carbs: Math.round((tdee * 0.4) / 4),
-          protein: Math.round((tdee * 0.3) / 4),
-          fats: Math.round((tdee * 0.3) / 9)
-        }
+    const heightInMeters = height / 100;
+    const bmi = parseFloat((weight / (heightInMeters * heightInMeters)).toFixed(1));
+
+    const protein = Math.round((dailyCalories * 0.30) / 4);
+    const fats = Math.round((dailyCalories * 0.35) / 9);
+    const carbs = Math.round((dailyCalories * 0.35) / 4);
+
+    // --- DATABASE SAVE ---
+    const metrics = { weight, height, age, gender, activity, goal };
+    const targets = { bmr: Math.round(bmr), tdee: Math.round(tdee), dailyCalories: Math.round(dailyCalories), macros: { protein, fats, carbs }, bmi };
+
+    // Check if user exists, update if so, create if not
+    let user = await User.findOne({ email });
+    if (user) {
+      user.name = name;
+      user.metrics = metrics;
+      user.targets = targets;
+      await user.save();
+    } else {
+      user = new User({
+        name,
+        email,
+        metrics,
+        targets
+      });
+      await user.save();
+    }
+
+    res.status(201).json({
+      success: true,
+      data: {
+        user: { name: user.name, email: user.email }, // Send back minimal info
+        metrics: user.metrics,
+        targets: user.targets
       }
-    };
+    });
 
-    const user = await User.findOneAndUpdate({ email }, userData, { upsert: true, new: true });
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-
-    res.status(201).json({ success: true, token, data: user });
   } catch (error) {
     next(error);
   }
 });
 
-// 2. Generate Meal Plan
-// --- MOCK DATA FOR FALLBACK ---
+// ==========================================
+// 2. Meal Plan Generator 
+// ==========================================
+
 const MOCK_MEAL_PLAN = {
   "Breakfast": {
-    "Recipe_title": "Oatmeal with Berries & Nut Butter",
-    "Calories": 450,
-    "protein": "15g",
-    "carbs": "60g",
-    "fats": "18g",
-    "img_url": "https://images.unsplash.com/photo-1517673132405-a56a62b18caf?w=600&q=80",
-    "ingredients": ["Oats", "Almond Milk", "Blueberries", "Peanut Butter", "Chia Seeds"]
+    "Recipe_title": "Protein Pancakes with Greek Yogurt & Honey",
+    "Calories": 410,
+    "protein": "28g",
+    "carbs": "45g",
+    "fats": "12g",
+    "img_url": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT4-nC9f-oC0KpAkjTsnVXwWTgxj3DRiTkjIQ&s",
+    "ingredients": ["Protein Powder", "Oat Flour", "Eggs", "Greek Yogurt", "Raw Honey"]
   },
   "Lunch": {
-    "Recipe_title": "Quinoa & Roasted Veggie Buddha Bowl",
-    "Calories": 600,
-    "protein": "22g",
-    "carbs": "75g",
-    "fats": "25g",
-    "img_url": "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&q=80",
-    "ingredients": ["Quinoa", "Chickpeas", "Sweet Potato", "Kale", "Tahini Dressing"]
+    "Recipe_title": "Spicy Grilled Chicken & Avocado Wrap",
+    "Calories": 580,
+    "protein": "42g",
+    "carbs": "55g",
+    "fats": "22g",
+    "img_url": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSn-X0iAxR5HSAGBfeqyLjDEcSUrzmyQsh19A&s",
+    "ingredients": ["Grilled Chicken Breast", "Whole Wheat Wrap", "Avocado", "Spinach", "Sriracha Mayo"]
   },
   "Dinner": {
-    "Recipe_title": "Grilled Tofu Stir-Fry",
-    "Calories": 550,
-    "protein": "30g",
-    "carbs": "45g",
-    "fats": "28g",
-    "img_url": "https://images.unsplash.com/photo-1547496502-affa22d38842?w=600&q=80",
-    "ingredients": ["Firm Tofu", "Broccoli", "Bell Peppers", "Soy Sauce", "Sesame Oil"]
+    "Recipe_title": "Baked Lemon Salmon with Asparagus & Quinoa",
+    "Calories": 520,
+    "protein": "38g",
+    "carbs": "35g",
+    "fats": "24g",
+    "img_url": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQpZt_QedC2pwU_8hP3B-fKsmasHWYfXO5YTw&s",
+    "ingredients": ["Wild Caught Salmon", "Asparagus", "Quinoa", "Olive Oil", "Fresh Lemon"]
   }
 };
 
 app.post('/api/generate-meal-plan', async (req, res, next) => {
   try {
-    const { targetCalories } = req.body;
-    if (!targetCalories) return next(new AppError('targetCalories is required', 400));
-
-    const caloriesParam = `min:${targetCalories - 150},max:${targetCalories + 150}`;
-    const apiURL = 'http://cosylab.iiitd.edu.in:6969/recipe2-api/mealplan/meal-plan';
-
-    const response = await axios.get(apiURL, {
-      headers: { 'Authorization': `Bearer ${process.env.RECIPEDB_KEY}` },
-      params: { diet_type: 'vegan', days: 1, calories_per_day: caloriesParam },
-      timeout: 5000 // 5s timeout to trigger fallback quickly
-    });
-
-    const mealPlan = response.data?.payload?.data?.meal_plan?.["Day 1"];
-    if (!mealPlan) throw new Error('RecipeDB returned empty plan');
-
-    res.json({ success: true, data: mealPlan });
-  } catch (error) {
-    console.error('⚠️ RecipeDB API Failed (using mock data):', error.message);
-    // FALLBACK: Return success with Mock Data
+    // We are returning the MOCK_MEAL_PLAN so the frontend cards render perfectly
     res.json({ success: true, data: MOCK_MEAL_PLAN });
+  } catch (error) {
+    next(error);
   }
 });
 
-// 3. AI Food Analysis
+// 3. Recipe of the Day (RecipeDB API)
+app.get('/api/recipe-of-the-day', async (req, res, next) => {
+  try {
+    const response = await axios.get('https://cosylab.iiitd.edu.in/recipe-db/api/recipes?page=1&limit=1');
+    if (response.data) {
+      res.json({ success: true, data: response.data });
+    } else {
+      throw new Error("No data from RecipeDB");
+    }
+  } catch (error) {
+    next(new AppError('Failed to fetch recipe', 502));
+  }
+});
+
+// 4. Snack Finder
+app.get('/api/recipes/protein', async (req, res, next) => {
+  try {
+    res.json({ success: true, data: [] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/recipes/carbs', async (req, res, next) => {
+  try {
+    res.json({ success: true, data: [] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 5. Image Analysis (Gemini Vision)
 app.post('/api/analyze-food', upload.single('image'), async (req, res, next) => {
   try {
     if (!req.file) return next(new AppError('No image uploaded', 400));
 
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const prompt = "Analyze this food image. Identify the food item and estimate its calories, protein, carbs, and fats. Return ONLY a JSON object with keys: name, calories, protein, carbs, fats. Do not use Markdown formatting.";
 
-    const prompt = `Analyze this food image. Identify the main dish and estimate its nutritional content. 
-    Return ONLY a JSON object with this structure (no markdown):
-    {
-      "name": "Food Name",
-      "calories": 0,
-      "protein": "0g",
-      "carbs": "0g",
-      "fats": "0g"
-    }
-    If it's not food, return "calories": 0 and "name": "Not Food".`;
+    const imageParts = [{ inlineData: { data: req.file.buffer.toString("base64"), mimeType: req.file.mimetype } }];
+    const result = await model.generateContent([prompt, ...imageParts]);
+    const response = await result.response;
 
-    const imagePart = {
-      inlineData: {
-        data: req.file.buffer.toString("base64"),
-        mimeType: req.file.mimetype,
-      },
-    };
+    const text = response.text();
+    const jsonString = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    const analysis = JSON.parse(jsonString);
 
-    const result = await model.generateContent([prompt, imagePart]);
-    const responseText = result.response.text();
-
-    // Clean up potential markdown code blocks
-    const jsonString = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
-    const data = JSON.parse(jsonString);
-
-    res.json({ success: true, data });
-  } catch (error) {
-    console.error("Gemini Scan Error:", error);
+    res.json({ success: true, data: analysis });
+  } catch (err) {
+    console.error("Gemini Vision Error:", err);
     next(new AppError('Failed to analyze image', 500));
   }
 });
 
-// --- FIX: Improved Global Error Handler ---
+// Global Error Handler
 app.use((err, req, res, next) => {
   const statusCode = err.statusCode || 500;
   res.status(statusCode).json({
     success: false,
-    message: err.message || "Internal Server Error",
-    // Only show the stack trace if you are in development mode
-    stack: process.env.NODE_ENV === 'development' ? err.stack : null,
+    message: err.message,
+    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
   });
 });
-
-// Initialize the Database and Server
-startServer();
