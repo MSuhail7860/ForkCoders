@@ -25,8 +25,7 @@ const Onboarding = ({ onComplete }) => {
         setLoading(true);
         setError(null);
         try {
-            // Assuming backend is on port 5000
-            const res = await axios.post('http://localhost:5000/api/calculate-and-save', formData);
+            const res = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/api/calculate-and-save`, formData);
             onComplete(res.data);
         } catch (err) {
             console.error(err);

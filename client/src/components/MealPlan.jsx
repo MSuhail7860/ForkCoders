@@ -13,7 +13,7 @@ const MealPlan = ({ targetCalories }) => {
         setError(null);
         try {
             const res = await axios.post(
-                'http://localhost:5000/api/generate-meal-plan', 
+                `${import.meta.env.VITE_API_BASE_URL}/api/generate-meal-plan`,
                 { targetCalories },
                 { signal } // Pass the abort signal to axios
             );
@@ -41,7 +41,7 @@ const MealPlan = ({ targetCalories }) => {
         if (!targetCalories) return;
 
         const controller = new AbortController();
-        
+
         // Auto-fetch when targetCalories are available/change
         generatePlan(controller.signal);
 
@@ -68,13 +68,32 @@ const MealPlan = ({ targetCalories }) => {
                     className="flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-full shadow-sm text-white bg-brand hover:bg-brand-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     {loading ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <ChefHat className="h-4 w-4 mr-2" />}
-                    {loading ? 'Cooking...' : "Regenerate Plan"}
+                    {loading ? 'chef is cooking...' : "Regenerate Plan"}
                 </button>
             </div>
 
             {error && (
                 <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded-md">
                     <p className="text-red-700">{error}</p>
+                </div>
+            )}
+
+            {loading && (
+                <div className="grid gap-6 md:grid-cols-3">
+                    {[1, 2, 3].map((i) => (
+                        <div key={i} className="animate-pulse bg-white rounded-xl h-80 w-full flex flex-col border border-gray-100 shadow-sm">
+                            <div className="h-48 bg-gray-200 rounded-t-xl"></div>
+                            <div className="p-5 space-y-3 flex-1">
+                                <div className="h-6 bg-gray-200 rounded w-3/4"></div>
+                                <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                                <div className="flex justify-between pt-4 mt-auto">
+                                    <div className="h-8 w-12 bg-gray-200 rounded"></div>
+                                    <div className="h-8 w-12 bg-gray-200 rounded"></div>
+                                    <div className="h-8 w-12 bg-gray-200 rounded"></div>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
                 </div>
             )}
 
