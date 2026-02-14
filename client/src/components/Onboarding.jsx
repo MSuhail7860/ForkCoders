@@ -27,7 +27,7 @@ const Onboarding = ({ onComplete }) => {
         try {
             // Assuming backend is on port 5000
             const res = await axios.post('http://localhost:5000/api/calculate-and-save', formData);
-            onComplete(res.data.data);
+            onComplete(res.data);
         } catch (err) {
             console.error(err);
             setError('Failed to save profile. Please try again.');

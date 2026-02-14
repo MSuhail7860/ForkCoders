@@ -24,7 +24,7 @@ const startServer = async () => {
   try {
     await mongoose.connect(process.env.MONGO_URI);
     console.log('✅ Connected to MongoDB successfully!');
-    
+
     app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
     });
@@ -66,9 +66,9 @@ app.post('/api/calculate-and-save', async (req, res, next) => {
     const userData = {
       name, email,
       metrics: { weight, height, age, gender, activity, goal },
-      targets: { 
-        dailyCalories: tdee, 
-        bmi, 
+      targets: {
+        dailyCalories: tdee,
+        bmi,
         macros: {
           carbs: Math.round((tdee * 0.4) / 4),
           protein: Math.round((tdee * 0.3) / 4),
@@ -106,6 +106,13 @@ app.post('/api/generate-meal-plan', async (req, res, next) => {
     res.json({ success: true, data: mealPlan });
   } catch (error) {
     next(error);
+    if (error.response) {
+      console.error('RecipeDB API Error:', error.response.status, error.response.data);
+    } else if (error.request) {
+      console.error('RecipeDB API No Response:', error.request);
+    } else {
+      console.error('RecipeDB API Request Error:', error.message);
+    }
   }
 });
 

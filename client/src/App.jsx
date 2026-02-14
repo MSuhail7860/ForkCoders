@@ -9,7 +9,8 @@ import { Target, Activity, Droplet, Camera, Dumbbell, TrendingUp, Plus, Minus, X
 const safeJsonParse = (key) => {
   try {
     const item = localStorage.getItem(key);
-    return item ? JSON.parse(item) : null;
+    if (!item || item === "undefined") return null;
+    return JSON.parse(item);
   } catch (error) {
     console.error(`Error parsing ${key} from LocalStorage, clearing it.`, error);
     localStorage.removeItem(key);
@@ -22,14 +23,14 @@ function App() {
   const [currentScreen, setCurrentScreen] = useState(() => {
     return safeJsonParse('userMetrics') ? 'dashboard' : 'login';
   });
-  
+
   const [user, setUser] = useState(() => safeJsonParse('userData'));
   const [metrics, setMetrics] = useState(() => safeJsonParse('userMetrics'));
 
   const [waterIntake, setWaterIntake] = useState(0);
   const [workout, setWorkout] = useState(null);
   const [showProgressModal, setShowProgressModal] = useState(false);
-  
+
   // State for AI Analysis Loading
   const [analyzingImage, setAnalyzingImage] = useState(false);
 
@@ -39,7 +40,7 @@ function App() {
   };
 
   const handleOnboardingComplete = (data) => {
-    setUser(data.data); 
+    setUser(data.data);
     setMetrics(data);
     setCurrentScreen('dashboard');
 
@@ -64,7 +65,7 @@ function App() {
   const generateWorkoutPlan = () => {
     if (!metrics) return;
     const goal = metrics.goal || (metrics.data?.metrics?.goal);
-    
+
     let plan = "";
     if (goal === 'lose') {
       plan = "30 min Cardio + High Rep Calisthenics.";
@@ -92,13 +93,13 @@ function App() {
 
       const { name, calories, protein, carbs, fats } = res.data.data;
       alert(`🤖 AI Analysis Complete!\n\nFood Detected: ${name}\nCalories: ${calories} kcal\nProtein: ${protein}\nCarbs: ${carbs}\nFats: ${fats}`);
-      
+
     } catch (error) {
       console.error(error);
       alert("AI failed to analyze the image. Please try a clearer picture.");
     } finally {
       setAnalyzingImage(false);
-      e.target.value = null; 
+      e.target.value = null;
     }
   };
 
@@ -251,9 +252,9 @@ function App() {
 
         {workout && (
           <div className="mb-8 bg-purple-50 border border-purple-100 p-4 rounded-xl flex items-center shadow-sm animate-fade-in relative">
-             <button onClick={() => setWorkout(null)} className="absolute top-2 right-2 text-purple-400 hover:text-purple-600">
-                <X className="h-4 w-4"/>
-             </button>
+            <button onClick={() => setWorkout(null)} className="absolute top-2 right-2 text-purple-400 hover:text-purple-600">
+              <X className="h-4 w-4" />
+            </button>
             <Dumbbell className="h-6 w-6 text-purple-600 mr-3" />
             <div>
               <h4 className="font-bold text-purple-800 text-sm uppercase tracking-wide">Your Plan</h4>
