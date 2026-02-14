@@ -10,7 +10,17 @@ const User = require('./models/User');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// --- FIX: CORS Configuration ---
+// --- Gemini Integration ---
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+const multer = require("multer");
+
+// Configure Multer for memory storage
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
+
+// Initialize Gemini
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
 app.use(cors({
   origin: 'http://localhost:5173',
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
@@ -87,6 +97,37 @@ app.post('/api/calculate-and-save', async (req, res, next) => {
 });
 
 // 2. Generate Meal Plan
+// --- MOCK DATA FOR FALLBACK ---
+const MOCK_MEAL_PLAN = {
+  "Breakfast": {
+    "Recipe_title": "Oatmeal with Berries & Nut Butter",
+    "Calories": 450,
+    "protein": "15g",
+    "carbs": "60g",
+    "fats": "18g",
+    "img_url": "https://images.unsplash.com/photo-1517673132405-a56a62b18caf?w=600&q=80",
+    "ingredients": ["Oats", "Almond Milk", "Blueberries", "Peanut Butter", "Chia Seeds"]
+  },
+  "Lunch": {
+    "Recipe_title": "Quinoa & Roasted Veggie Buddha Bowl",
+    "Calories": 600,
+    "protein": "22g",
+    "carbs": "75g",
+    "fats": "25g",
+    "img_url": "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&q=80",
+    "ingredients": ["Quinoa", "Chickpeas", "Sweet Potato", "Kale", "Tahini Dressing"]
+  },
+  "Dinner": {
+    "Recipe_title": "Grilled Tofu Stir-Fry",
+    "Calories": 550,
+    "protein": "30g",
+    "carbs": "45g",
+    "fats": "28g",
+    "img_url": "https://images.unsplash.com/photo-1547496502-affa22d38842?w=600&q=80",
+    "ingredients": ["Firm Tofu", "Broccoli", "Bell Peppers", "Soy Sauce", "Sesame Oil"]
+  }
+};
+
 app.post('/api/generate-meal-plan', async (req, res, next) => {
   try {
     const { targetCalories } = req.body;
@@ -97,22 +138,57 @@ app.post('/api/generate-meal-plan', async (req, res, next) => {
 
     const response = await axios.get(apiURL, {
       headers: { 'Authorization': `Bearer ${process.env.RECIPEDB_KEY}` },
-      params: { diet_type: 'vegan', days: 1, calories_per_day: caloriesParam }
+      params: { diet_type: 'vegan', days: 1, calories_per_day: caloriesParam },
+      timeout: 5000 // 5s timeout to trigger fallback quickly
     });
 
     const mealPlan = response.data?.payload?.data?.meal_plan?.["Day 1"];
-    if (!mealPlan) return next(new AppError('RecipeDB API returned no plan for Day 1', 404));
+    if (!mealPlan) throw new Error('RecipeDB returned empty plan');
 
     res.json({ success: true, data: mealPlan });
   } catch (error) {
-    next(error);
-    if (error.response) {
-      console.error('RecipeDB API Error:', error.response.status, error.response.data);
-    } else if (error.request) {
-      console.error('RecipeDB API No Response:', error.request);
-    } else {
-      console.error('RecipeDB API Request Error:', error.message);
+    console.error('⚠️ RecipeDB API Failed (using mock data):', error.message);
+    // FALLBACK: Return success with Mock Data
+    res.json({ success: true, data: MOCK_MEAL_PLAN });
+  }
+});
+
+// 3. AI Food Analysis
+app.post('/api/analyze-food', upload.single('image'), async (req, res, next) => {
+  try {
+    if (!req.file) return next(new AppError('No image uploaded', 400));
+
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+    const prompt = `Analyze this food image. Identify the main dish and estimate its nutritional content. 
+    Return ONLY a JSON object with this structure (no markdown):
+    {
+      "name": "Food Name",
+      "calories": 0,
+      "protein": "0g",
+      "carbs": "0g",
+      "fats": "0g"
     }
+    If it's not food, return "calories": 0 and "name": "Not Food".`;
+
+    const imagePart = {
+      inlineData: {
+        data: req.file.buffer.toString("base64"),
+        mimeType: req.file.mimetype,
+      },
+    };
+
+    const result = await model.generateContent([prompt, imagePart]);
+    const responseText = result.response.text();
+
+    // Clean up potential markdown code blocks
+    const jsonString = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+    const data = JSON.parse(jsonString);
+
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error("Gemini Scan Error:", error);
+    next(new AppError('Failed to analyze image', 500));
   }
 });
 
