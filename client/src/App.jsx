@@ -10,13 +10,19 @@ function App() {
 
   // Load from local storage on startup
   useEffect(() => {
-    const savedUser = localStorage.getItem('user');
-    const savedMetrics = localStorage.getItem('metrics');
+    try {
+      const savedUser = localStorage.getItem('user');
+      const savedMetrics = localStorage.getItem('metrics');
 
-    if (savedUser && savedMetrics) {
-      setUser(JSON.parse(savedUser));
-      setMetrics(JSON.parse(savedMetrics));
-      setCurrentScreen('dashboard');
+      if (savedUser && savedMetrics) {
+        setUser(JSON.parse(savedUser));
+        setMetrics(JSON.parse(savedMetrics));
+        setCurrentScreen('dashboard');
+      }
+    } catch (err) {
+      console.error("Failed to load session:", err);
+      localStorage.clear();
+      setCurrentScreen('login');
     }
   }, []);
 
@@ -59,7 +65,7 @@ function App() {
 
   return (
     <div>
-      {currentScreen === 'login' && <Login onLogin={handleLogin} />}
+      {currentScreen === 'login' && <Login onLogin={handleLogin} onNavigateToOnboarding={() => setCurrentScreen('onboarding')} />}
       {currentScreen === 'onboarding' && <Onboarding onComplete={handleOnboardingComplete} initialUser={user} />}
       {currentScreen === 'dashboard' && <Dashboard user={user} metrics={metrics} handleLogout={handleLogout} />}
     </div>

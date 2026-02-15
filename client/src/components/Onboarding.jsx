@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { ArrowRight, Activity, User, Scale, Ruler } from 'lucide-react';
+import { ChevronRight, Activity, User, Scale, Ruler, Mail, Loader2 } from 'lucide-react';
 
 const Onboarding = ({ onComplete, initialUser }) => {
     const [formData, setFormData] = useState({
         name: initialUser?.name || '',
-        email: initialUser?.email || '',
+        email: initialUser?.email || '', // Replaced password with email
         weight: '',
         height: '',
         age: '',
@@ -25,8 +25,9 @@ const Onboarding = ({ onComplete, initialUser }) => {
         setLoading(true);
         setError(null);
         try {
+            // Sends data to your existing /api/calculate-and-save endpoint
             const res = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/api/calculate-and-save`, formData);
-            onComplete(res.data.data); // Expecting { user, metrics, targets } structure
+            onComplete(res.data.data); 
         } catch (err) {
             console.error(err);
             const errMsg = err.response?.data?.message || err.message || 'Failed to save profile. Please try again.';
@@ -37,163 +38,144 @@ const Onboarding = ({ onComplete, initialUser }) => {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-            <div className="max-w-md w-full space-y-8 bg-white p-10 rounded-2xl shadow-xl">
-                <div className="text-center">
-                    <h2 className="mt-6 text-3xl font-extrabold text-brand-dark">
-                        Diet-To-Discipline
-                    </h2>
-                    <p className="mt-2 text-sm text-gray-600">
-                        Build your personalized nutrition plan.
-                    </p>
+        <div className="min-h-screen bg-[#030303] text-slate-100 p-6 flex items-center justify-center font-sans">
+            <div className="w-full max-w-2xl bg-[#0a0a0a] border border-white/5 p-10 rounded-[48px] shadow-2xl shadow-violet-900/10 animate-in fade-in zoom-in duration-500">
+                <div className="mb-10 text-center">
+                    <div className="inline-block bg-violet-600/20 p-4 rounded-3xl border border-violet-500/30 mb-6">
+                        <Activity className="h-8 w-8 text-violet-400" />
+                    </div>
+                    <h2 className="text-3xl font-black text-white italic mb-2 tracking-tight">Build Your Plan</h2>
+                    <p className="text-violet-500/60 text-[10px] font-black uppercase tracking-[0.3em]">Personalized Discipline Blueprint</p>
                 </div>
-                <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-                    {error && <div className="text-red-500 text-sm text-center">{error}</div>}
-                    <div className="rounded-md shadow-sm -space-y-px">
-                        <div className="grid grid-cols-2 gap-4 mb-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Name</label>
-                                <div className="mt-1 relative rounded-md shadow-sm">
-                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                        <User className="h-5 w-5 text-gray-400" />
-                                    </div>
-                                    <input
-                                        name="name"
-                                        type="text"
-                                        required
-                                        className="focus:ring-brand focus:border-brand block w-full pl-10 sm:text-sm border-gray-300 rounded-md py-2 border"
-                                        placeholder="John Doe"
-                                        value={formData.name}
-                                        onChange={handleChange}
-                                    />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Email</label>
-                                <input
-                                    name="email"
-                                    type="email"
-                                    required
-                                    className="focus:ring-brand focus:border-brand block w-full sm:text-sm border-gray-300 rounded-md py-2 px-3 border"
-                                    placeholder="john@example.com"
-                                    value={formData.email}
-                                    onChange={handleChange}
-                                />
-                            </div>
-                        </div>
 
-                        <div className="grid grid-cols-3 gap-4 mb-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Weight (kg)</label>
-                                <div className="mt-1 relative rounded-md shadow-sm">
-                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                        <Scale className="h-4 w-4 text-gray-400" />
-                                    </div>
-                                    <input
-                                        name="weight"
-                                        type="number"
-                                        required
-                                        className="focus:ring-brand focus:border-brand block w-full pl-10 sm:text-sm border-gray-300 rounded-md py-2 border"
-                                        placeholder="70"
-                                        value={formData.weight}
-                                        onChange={handleChange}
-                                    />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Height (cm)</label>
-                                <div className="mt-1 relative rounded-md shadow-sm">
-                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                        <Ruler className="h-4 w-4 text-gray-400" />
-                                    </div>
-                                    <input
-                                        name="height"
-                                        type="number"
-                                        required
-                                        className="focus:ring-brand focus:border-brand block w-full pl-10 sm:text-sm border-gray-300 rounded-md py-2 border"
-                                        placeholder="175"
-                                        value={formData.height}
-                                        onChange={handleChange}
-                                    />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Age</label>
-                                <input
-                                    name="age"
-                                    type="number"
-                                    required
-                                    className="focus:ring-brand focus:border-brand block w-full sm:text-sm border-gray-300 rounded-md py-2 px-3 border"
-                                    placeholder="30"
-                                    value={formData.age}
-                                    onChange={handleChange}
-                                />
-                            </div>
+                <form className="space-y-6" onSubmit={handleSubmit}>
+                    {error && (
+                        <div className="bg-red-900/20 text-red-400 text-[10px] font-black p-3 rounded-2xl border border-red-900/50 text-center uppercase tracking-widest">
+                            {error}
                         </div>
+                    )}
 
-                        <div className="grid grid-cols-1 gap-4 mb-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Gender</label>
-                                <select
-                                    name="gender"
-                                    className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-brand focus:border-brand sm:text-sm rounded-md border"
-                                    value={formData.gender}
-                                    onChange={handleChange}
-                                >
-                                    <option value="male">Male</option>
-                                    <option value="female">Female</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Activity Level</label>
-                                <div className="mt-1 relative rounded-md shadow-sm">
-                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                        <Activity className="h-5 w-5 text-gray-400" />
-                                    </div>
-                                    <select
-                                        name="activity"
-                                        className="block w-full pl-10 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-brand focus:border-brand sm:text-sm rounded-md border"
-                                        value={formData.activity}
-                                        onChange={handleChange}
-                                    >
-                                        <option value="1.2">Sedentary (Office Job)</option>
-                                        <option value="1.375">Light Exercise (1-2 days/week)</option>
-                                        <option value="1.55">Moderate Exercise (3-5 days/week)</option>
-                                        <option value="1.725">Heavy Exercise (6-7 days/week)</option>
-                                        <option value="1.9">Athlete (2x per day)</option>
-                                    </select>
-                                </div>
-                            </div>
+                    {/* Name and Email Group */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="relative group">
+                            <User className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20 group-focus-within:text-violet-400 transition-colors" size={18} />
+                            <input
+                                name="name"
+                                type="text"
+                                required
+                                className="w-full bg-[#111111] border border-white/5 text-white pl-12 pr-4 py-4 rounded-2xl focus:border-violet-500/50 outline-none transition-all placeholder:text-white/10 font-medium"
+                                placeholder="Your Name"
+                                value={formData.name}
+                                onChange={handleChange}
+                            />
                         </div>
+                        <div className="relative group">
+                            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20 group-focus-within:text-violet-400 transition-colors" size={18} />
+                            <input
+                                name="email"
+                                type="email"
+                                required
+                                className="w-full bg-[#111111] border border-white/5 text-white pl-12 pr-4 py-4 rounded-2xl focus:border-violet-500/50 outline-none transition-all placeholder:text-white/10 font-medium"
+                                placeholder="Email Address"
+                                value={formData.email}
+                                onChange={handleChange}
+                            />
+                        </div>
+                    </div>
 
-                        <div className="mb-4">
-                            <label className="block text-sm font-medium text-gray-700">Goal</label>
+                    {/* Weight, Height, Age Group */}
+                    <div className="grid grid-cols-3 gap-4">
+                        <div className="relative group">
+                            <Scale className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20 group-focus-within:text-violet-400" size={16} />
+                            <input
+                                name="weight"
+                                type="number"
+                                required
+                                className="w-full bg-[#111111] border border-white/5 text-white pl-10 pr-4 py-4 rounded-2xl focus:border-violet-500/50 outline-none transition-all placeholder:text-white/10 font-medium"
+                                placeholder="Weight (kg)"
+                                value={formData.weight}
+                                onChange={handleChange}
+                            />
+                        </div>
+                        <div className="relative group">
+                            <Ruler className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20 group-focus-within:text-violet-400" size={16} />
+                            <input
+                                name="height"
+                                type="number"
+                                required
+                                className="w-full bg-[#111111] border border-white/5 text-white pl-10 pr-4 py-4 rounded-2xl focus:border-violet-500/50 outline-none transition-all placeholder:text-white/10 font-medium"
+                                placeholder="Height (cm)"
+                                value={formData.height}
+                                onChange={handleChange}
+                            />
+                        </div>
+                        <div className="relative">
+                            <input
+                                name="age"
+                                type="number"
+                                required
+                                className="w-full bg-[#111111] border border-white/5 text-white px-6 py-4 rounded-2xl focus:border-violet-500/50 outline-none transition-all placeholder:text-white/10 font-medium"
+                                placeholder="Age"
+                                value={formData.age}
+                                onChange={handleChange}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Select Group */}
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <select
+                                name="gender"
+                                className="w-full bg-[#111111] border border-white/5 text-white px-6 py-4 rounded-2xl focus:border-violet-500/50 outline-none appearance-none cursor-pointer"
+                                value={formData.gender}
+                                onChange={handleChange}
+                            >
+                                <option value="male">Male</option>
+                                <option value="female">Female</option>
+                            </select>
                             <select
                                 name="goal"
-                                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-brand focus:border-brand sm:text-sm rounded-md border"
+                                className="w-full bg-[#111111] border border-white/5 text-white px-6 py-4 rounded-2xl focus:border-violet-500/50 outline-none appearance-none cursor-pointer"
                                 value={formData.goal}
                                 onChange={handleChange}
                             >
-                                <option value="lose">Weight Loss (-500 cal)</option>
+                                <option value="lose">Weight Loss</option>
                                 <option value="maintain">Maintain Weight</option>
-                                <option value="gain">Weight Gain (+500 cal)</option>
+                                <option value="gain">Weight Gain</option>
                             </select>
                         </div>
-                    </div >
-
-                    <div>
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-brand hover:bg-brand-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand transition-all duration-200"
+                        <select
+                            name="activity"
+                            className="w-full bg-[#111111] border border-white/5 text-white px-6 py-4 rounded-2xl focus:border-violet-500/50 outline-none appearance-none cursor-pointer"
+                            value={formData.activity}
+                            onChange={handleChange}
                         >
-                            {loading ? 'Calculate My Plan' : 'Calculate My Plan'}
-                            {!loading && <ArrowRight className="ml-2 h-4 w-4" />}
-                        </button>
+                            <option value="1.2">Sedentary (Office Job)</option>
+                            <option value="1.375">Lightly Active (1-2 days/week)</option>
+                            <option value="1.55">Moderately Active (3-5 days/week)</option>
+                            <option value="1.725">Very Active (6-7 days/week)</option>
+                            <option value="1.9">Athlete (2x per day)</option>
+                        </select>
                     </div>
-                </form >
-            </div >
-        </div >
+
+                    <button
+                        type="submit"
+                        disabled={loading}
+                        className="w-full bg-violet-600 hover:bg-violet-500 disabled:bg-white/5 text-white font-black py-5 rounded-3xl transition-all shadow-xl shadow-violet-600/20 flex items-center justify-center uppercase text-xs tracking-[0.2em] group"
+                    >
+                        {loading ? (
+                            <Loader2 className="animate-spin h-5 w-5" />
+                        ) : (
+                            <>
+                                Calculate My Plan 
+                                <ChevronRight className="ml-2 group-hover:translate-x-1 transition-transform" size={18} />
+                            </>
+                        )}
+                    </button>
+                </form>
+            </div>
+        </div>
     );
 };
 

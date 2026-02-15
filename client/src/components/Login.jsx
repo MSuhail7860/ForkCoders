@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import axios from 'axios';
-import { ArrowRight, Activity, User, Mail } from 'lucide-react';
+import { ChevronRight, Activity, User, Lock, Loader2 } from 'lucide-react';
 
-const Login = ({ onLogin }) => {
+const Login = ({ onLogin, onNavigateToOnboarding }) => {
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [loading, setLoading] = useState(false);
@@ -19,98 +18,84 @@ const Login = ({ onLogin }) => {
             return;
         }
 
-        // In the prototype, "Login" is essentially "Check if exists" or "Start Session"
-        // We will just pass the basic info up. 
-        // Or we could call an endpoint to see if user exists. 
-        // Let's assume we proceed to onboarding if new, or dashboard if exists.
-        // For simplicity in this revert, let's just pass the data up and let App decide or 
-        // call the calculate endpoint if we want to "fetch" data.
-
-        // Actually, to restore "real" prototype behavior:
-        // usually we just capture Name/Email and move to Onboarding.
-        // BUT if we want to support "logging in" to see old data, we need a fetch.
-        // Let's rely on calculating/saving in Onboarding for new users. 
-        // checking for existing user here might be needed.
-
-        // Simulating "Auth":
-        // Logic: Pass simple user object. App.jsx will check if it has data? 
-        // No, App.jsx's handleLogin expects userData. 
-        // Let's try to "get" the user. 
-        // Since we removed the specific 'login' route, we'll implement a simple 
-        // check or just pass it through to Onboarding.
-
-        // OPTION: Just pass { name, email } and let App route to Onboarding.
-        // This is safe for a prototype.
+        // Logic: Pass credentials up to App.jsx for session management
         onLogin({ name, email });
         setLoading(false);
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-            <div className="max-w-md w-full space-y-8 bg-white p-10 rounded-2xl shadow-xl">
-                <div className="text-center">
-                    <div className="mx-auto h-12 w-12 bg-brand-light rounded-full flex items-center justify-center mb-4">
-                        <Activity className="h-8 w-8 text-brand" />
-                    </div>
-                    <h2 className="text-3xl font-extrabold text-brand-dark">
-                        Diet-To-Discipline
-                    </h2>
-                    <p className="mt-2 text-sm text-gray-600">
-                        Enter your details to start your journey.
+        <div className="min-h-screen bg-[#030303] flex flex-col items-center justify-center p-6 text-slate-100">
+            {/* Logo Section */}
+            <div className="flex flex-col items-center mb-12 animate-in fade-in slide-in-from-top-4 duration-700">
+                <div className="bg-violet-600/20 p-4 rounded-3xl border border-violet-500/30 mb-4 shadow-2xl shadow-violet-500/10">
+                    <Activity className="h-10 w-10 text-violet-400" />
+                </div>
+                <h1 className="text-4xl font-black text-white tracking-tight italic">
+                    Diet-To-Discipline
+                </h1>
+            </div>
+
+            {/* Login Card */}
+            <div className="w-full max-w-md bg-[#0a0a0a] border border-white/5 p-10 rounded-[48px] shadow-[0_0_60px_-15px_rgba(139,92,246,0.15)]">
+                <div className="text-center mb-10">
+                    <h2 className="text-2xl font-black text-white mb-2 tracking-tight">Welcome Back</h2>
+                    <p className="text-violet-500/60 text-[10px] font-black uppercase tracking-[0.3em]">
+                        Sync Your Progress
                     </p>
                 </div>
-                <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-                    {error && <div className="text-red-500 text-sm text-center">{error}</div>}
-                    <div className="rounded-md shadow-sm -space-y-px">
-                        <div className="mb-4">
-                            <label htmlFor="name" className="sr-only">Name</label>
-                            <div className="relative">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <User className="h-5 w-5 text-gray-400" />
-                                </div>
-                                <input
-                                    id="name"
-                                    name="name"
-                                    type="text"
-                                    required
-                                    className="focus:ring-brand focus:border-brand block w-full pl-10 sm:text-sm border-gray-300 rounded-md py-3 border"
-                                    placeholder="Your Name"
-                                    value={name}
-                                    onChange={(e) => setName(e.target.value)}
-                                />
-                            </div>
+
+                <form className="space-y-5" onSubmit={handleSubmit}>
+                    {error && (
+                        <div className="bg-red-500/10 text-red-400 text-[10px] font-black p-3 rounded-2xl border border-red-500/20 text-center uppercase tracking-widest">
+                            {error}
                         </div>
-                        <div>
-                            <label htmlFor="email" className="sr-only">Email</label>
-                            <div className="relative">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <Mail className="h-5 w-5 text-gray-400" />
-                                </div>
-                                <input
-                                    id="email"
-                                    name="email"
-                                    type="email"
-                                    required
-                                    className="focus:ring-brand focus:border-brand block w-full pl-10 sm:text-sm border-gray-300 rounded-md py-3 border"
-                                    placeholder="Email Address"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                />
+                    )}
+
+                    <div className="space-y-3">
+                        <div className="relative group">
+                            <User className="absolute left-5 top-1/2 -translate-y-1/2 text-white/20 group-focus-within:text-violet-400 transition-colors" size={18} />
+                            <input
+                                type="text"
+                                className="w-full bg-[#111111] border border-white/5 text-white pl-14 pr-6 py-5 rounded-3xl focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/50 transition-all placeholder:text-white/10 font-medium"
+                                placeholder="Name"
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                required
+                            />
+                        </div>
+
+                        <div className="relative group">
+                            {/* Changed Lock to Mail for Email field */}
+                            <div className="absolute left-5 top-1/2 -translate-y-1/2 text-white/20 group-focus-within:text-violet-400 transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="16" x="2" y="4" rx="2" /><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" /></svg>
                             </div>
+                            <input
+                                type="email"
+                                className="w-full bg-[#111111] border border-white/5 text-white pl-14 pr-6 py-5 rounded-3xl focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/50 transition-all placeholder:text-white/10 font-medium"
+                                placeholder="Email Address"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                required
+                            />
                         </div>
                     </div>
 
-                    <div>
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-brand hover:bg-brand-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand transition-all duration-200 shadow-md transform hover:-translate-y-0.5"
-                        >
-                            {loading ? 'Signing in...' : 'Sign In'}
-                            {!loading && <ArrowRight className="ml-2 h-4 w-4" />}
-                        </button>
-                    </div>
+                    <button
+                        type="submit"
+                        disabled={loading}
+                        className="w-full bg-violet-600 hover:bg-violet-500 disabled:bg-white/5 text-white font-black py-5 rounded-3xl transition-all shadow-xl shadow-violet-600/20 flex items-center justify-center group uppercase text-xs tracking-[0.2em]"
+                    >
+                        {loading ? <Loader2 className="animate-spin h-5 w-5" /> : "Enter System"}
+                        {!loading && <ChevronRight className="ml-2 group-hover:translate-x-1 transition-transform" size={18} />}
+                    </button>
                 </form>
+
+                <button
+                    onClick={onNavigateToOnboarding}
+                    className="w-full mt-6 text-[10px] text-slate-500 font-bold uppercase tracking-widest hover:text-violet-400 transition-colors"
+                >
+                    New here? Create your plan
+                </button>
             </div>
         </div>
     );
